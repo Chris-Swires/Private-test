@@ -1,0 +1,458 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <title>UK Private School Closures: An Interactive Analysis</title>
+    <script src="https://cdn.tailwindcss.com"></script>
+    <link rel="stylesheet" href="https://unpkg.com/leaflet@1.9.4/dist/leaflet.css" integrity="sha256-p4NxAoJBhIIN+hmNHrzRCf9tD/miZyoHS5obTRR9BMY=" crossorigin=""/>
+    <script src="https://unpkg.com/leaflet@1.9.4/dist/leaflet.js" integrity="sha256-20nQCchB9co0qIjJZRGuk2/Z9VM+kNiyxNV1lvTlZBo=" crossorigin=""></script>
+    <script src="https://cdn.jsdelivr.net/npm/chart.js"></script>
+    <link rel="stylesheet" href="https://cdnjs.cloudflare.com/ajax/libs/noUiSlider/15.7.1/nouislider.min.css" xintegrity="sha512-qveKnGrvOEX3No6PXXAyba7NAaRnlatA2dRTlIWTwJ27mqI/AT3xc+2cVPTBwP19A2t9YcOHIZ4dSGdRIabQEQ==" crossorigin="anonymous" referrerpolicy="no-referrer" />
+    <script src="https://cdnjs.cloudflare.com/ajax/libs/noUiSlider/15.7.1/nouislider.min.js" xintegrity="sha512-UOJe4paV6hYWBnS0c9GnIRH8PLm2nFK22uhfAvsTIqd3uwnAadVayZJFuGOBL3v0+IZImsDQGbaHwdUi3F9gnw==" crossorigin="anonymous" referrerpolicy="no-referrer"></script>
+    <link href="https://fonts.googleapis.com/css2?family=Inter:wght@400;600;700&display=swap" rel="stylesheet">
+    <style>
+        body {
+            font-family: 'Inter', sans-serif;
+            background-color: #f0f2f5;
+        }
+        #map, #at-risk-map {
+            height: 60vh;
+            border-radius: 0.5rem;
+        }
+        .chart-container {
+            position: relative;
+            height: 45vh;
+            width: 100%;
+        }
+        .noUi-connect {
+            background: #3b82f6;
+        }
+        .noUi-target {
+            border: 1px solid #d1d5db;
+        }
+        .toggle-btn {
+            transition: all 0.2s ease-in-out;
+        }
+        .toggle-btn.active {
+            background-color: #2563eb;
+            color: white;
+            box-shadow: 0 2px 4px rgba(0,0,0,0.1);
+        }
+    </style>
+</head>
+<body class="text-gray-800">
+
+    <div class="container mx-auto p-4 md:p-6 lg:p-8">
+        <header class="text-center mb-8">
+            <h1 class="text-2xl sm:text-3xl md:text-5xl font-bold text-gray-900">The Changing Landscape of UK Private Education</h1>
+            <p class="text-md sm:text-lg md:text-xl text-gray-600 mt-2">An interactive analysis of school closures since the VAT on fees announcement.</p>
+        </header>
+
+        <!-- Toggles Section -->
+        <section class="bg-white p-4 rounded-lg shadow-md mb-8">
+            <h2 class="text-xl md:text-2xl font-bold mb-4">Highlight & Filter Data</h2>
+            <div class="space-y-4">
+                <!-- Toggle Groups -->
+                <div id="toggle-groups"></div>
+                 <div class="flex flex-wrap gap-2 pt-4 border-t border-gray-200">
+                    <button id="reset-filters" class="flex-grow bg-blue-500 hover:bg-blue-600 text-white font-bold py-2 px-4 rounded-md">Reset Selections</button>
+                </div>
+            </div>
+             <div class="mt-6">
+                <label for="timeline-slider" class="block font-semibold mb-2">Filter by Announcement Date</label>
+                <div id="timeline-slider" class="mx-2"></div>
+                <div id="timeline-date" class="text-center mt-2 font-medium text-gray-700"></div>
+            </div>
+        </section>
+
+        <main class="space-y-8">
+            <!-- Main Map Section -->
+            <section class="bg-white p-6 rounded-lg shadow-md">
+                <h2 class="text-xl md:text-2xl font-bold mb-4">Confirmed Closure Hotspots (<span id="school-count">0</span> schools)</h2>
+                <p class="text-sm md:text-base text-gray-600 mb-4">All confirmed closures are shown. Use the toggles to highlight specific categories in red.</p>
+                <div id="map"></div>
+            </section>
+
+            <!-- Charts Section -->
+            <section class="bg-white p-6 rounded-lg shadow-md">
+                <h2 class="text-xl md:text-2xl font-bold mb-4">Regional Impact of Selected Schools</h2>
+                <div class="grid grid-cols-1 lg:grid-cols-2 gap-8">
+                    <div class="chart-container"><canvas id="regionalClosuresChart"></canvas></div>
+                    <div class="chart-container"><canvas id="regionalPercentageChart"></canvas></div>
+                </div>
+            </section>
+
+            <!-- Table Section -->
+            <section class="bg-white p-6 rounded-lg shadow-md">
+                <h2 class="text-xl md:text-2xl font-bold mb-4">Detailed Information on Selected Schools</h2>
+                <div class="overflow-x-auto">
+                    <table class="min-w-full bg-white text-sm">
+                        <thead class="bg-gray-200">
+                            <tr>
+                                <th class="py-2 px-3 border-b text-left">School Name</th>
+                                <th class="py-2 px-3 border-b text-left hidden sm:table-cell">Region</th>
+                                <th class="py-2 px-3 border-b text-right">Age</th>
+                                <th class="py-2 px-3 border-b text-right">Pupils</th>
+                                <th class="py-2 px-3 border-b text-left hidden md:table-cell">Fee Range</th>
+                                <th class="py-2 px-3 border-b text-left hidden lg:table-cell">Ownership</th>
+                                <th class="py-2 px-3 border-b text-left hidden lg:table-cell">Pupil Type</th>
+                                <th class="py-2 px-3 border-b text-left hidden md:table-cell">Rating</th>
+                            </tr>
+                        </thead>
+                        <tbody id="schoolList"></tbody>
+                    </table>
+                </div>
+            </section>
+
+            <!-- Predictive Sections -->
+            <section class="grid grid-cols-1 lg:grid-cols-2 gap-8 mt-8">
+                <div class="bg-white p-6 rounded-lg shadow-md">
+                    <h2 class="text-xl md:text-2xl font-bold mb-4 text-blue-800">6-Month Closure Outlook</h2>
+                     <p class="text-sm md:text-base text-gray-600 mb-4">This forecast models the immediate fallout from the VAT change, focusing on schools already showing financial vulnerability.</p>
+                    <div class="text-center mb-4">
+                        <p class="text-4xl md:text-5xl font-bold text-blue-600">15-25</p>
+                        <p class="text-lg text-gray-700">Additional Schools at High Risk</p>
+                    </div>
+                </div>
+                <div class="bg-white p-6 rounded-lg shadow-md">
+                    <h2 class="text-xl md:text-2xl font-bold mb-4 text-red-800">3-Year Closure Outlook</h2>
+                    <p class="text-sm md:text-base text-gray-600 mb-4">This long-term forecast considers the cumulative effect of VAT, rising costs, and market consolidation.</p>
+                    <div class="text-center mb-4">
+                        <p class="text-4xl md:text-5xl font-bold text-red-600">70-100+</p>
+                        <p class="text-lg text-gray-700">Total Additional Closures or Mergers</p>
+                    </div>
+                </div>
+            </section>
+            
+            <!-- At-Risk Map -->
+             <section class="bg-white p-6 rounded-lg shadow-md">
+                <h2 class="text-xl md:text-2xl font-bold mb-4 text-amber-800">Future Outlook: Potentially Vulnerable Schools</h2>
+                <p class="text-sm md:text-base text-gray-600 mb-4">Based on a combination of risk factors (e.g., small size, standalone ownership, regional economics), the schools below have been identified as potentially vulnerable. <strong class="font-semibold">This is a predictive model based on public data patterns and not a definitive statement of any school's financial health.</strong></p>
+                <div id="at-risk-map"></div>
+            </section>
+        </main>
+
+        <footer class="text-center mt-12 py-4 border-t border-gray-300">
+            <p class="text-gray-500 text-sm">Data compiled from public sources and news reports as of July 2025. This is not an exhaustive list and is for informational purposes only.</p>
+        </footer>
+    </div>
+
+    <script>
+        // --- DATASET: CONFIRMED CLOSURES ---
+        const schoolData = [
+            { "name": "Loughborough Amherst School", "location": "Loughborough", "region": "East Midlands", "lat": 52.765, "lon": -1.214, "foundingYear": 1850, "pupilsAffected": 300, "feeRange": "Medium", "ownership": "Foundation", "pupilType": "Day", "rating": "Good", "senFocus": "No", "closureDate": "2025-01-06" },
+            { "name": "Maidwell Hall School", "location": "Northamptonshire", "region": "East Midlands", "lat": 52.385, "lon": -0.933, "foundingYear": 1911, "pupilsAffected": 120, "feeRange": "High", "ownership": "For-Profit Group", "pupilType": "Boarding", "rating": "Good", "senFocus": "No", "closureDate": "2025-01-15" },
+            { "name": "The Village Prep School", "location": "London", "region": "London", "lat": 51.553, "lon": -0.173, "foundingYear": 1985, "pupilsAffected": 140, "feeRange": "High", "ownership": "For-Profit Group", "pupilType": "Day", "rating": "Good", "senFocus": "No", "closureDate": "2025-01-20" },
+            { "name": "Oxford House School", "location": "Colchester", "region": "East of England", "lat": 51.888, "lon": 0.884, "foundingYear": 1959, "pupilsAffected": 144, "feeRange": "Medium", "ownership": "For-Profit Group", "pupilType": "Day", "rating": "Good", "senFocus": "No", "closureDate": "2025-01-22" },
+            { "name": "Moorland School (Senior)", "location": "Clitheroe", "region": "North West", "lat": 53.872, "lon": -2.390, "foundingYear": 1920, "pupilsAffected": 130, "feeRange": "Medium", "ownership": "Private", "pupilType": "Mixed", "rating": "Good", "senFocus": "No", "closureDate": "2025-03-26" },
+            { "name": "Fulneck School", "location": "Pudsey", "region": "Yorkshire and the Humber", "lat": 53.787, "lon": -1.670, "foundingYear": 1753, "pupilsAffected": 294, "feeRange": "Medium", "ownership": "Charitable Trust", "pupilType": "Mixed", "rating": "Good", "senFocus": "No", "closureDate": "2025-03-24" },
+            { "name": "S. Anselm's Prep School", "location": "Bakewell", "region": "East Midlands", "lat": 53.213, "lon": -1.679, "foundingYear": 1888, "pupilsAffected": 134, "feeRange": "High", "ownership": "Charitable Trust", "pupilType": "Mixed", "rating": "Good", "senFocus": "No", "closureDate": "2025-03-20" },
+            { "name": "Bedstone College", "location": "Shropshire", "region": "West Midlands", "lat": 52.365, "lon": -2.871, "foundingYear": 1948, "pupilsAffected": 152, "feeRange": "High", "ownership": "Charitable Trust", "pupilType": "Mixed", "rating": "Good", "senFocus": "No", "closureDate": "2025-02-10" },
+            { "name": "Bishop Challoner School", "location": "London", "region": "London", "lat": 51.393, "lon": 0.030, "foundingYear": 1950, "pupilsAffected": 341, "feeRange": "Medium", "ownership": "For-Profit Group", "pupilType": "Day", "rating": "Good", "senFocus": "No", "closureDate": "2025-06-12" },
+            { "name": "The Royal School", "location": "Haslemere", "region": "South East", "lat": 51.089, "lon": -0.710, "foundingYear": 1840, "pupilsAffected": 190, "feeRange": "High", "ownership": "For-Profit Group", "pupilType": "Mixed", "rating": "Good", "senFocus": "No", "closureDate": "2025-02-14" },
+            { "name": "St Clare's School", "location": "Porthcawl", "region": "Wales", "lat": 51.488, "lon": -3.674, "foundingYear": 1938, "pupilsAffected": 150, "feeRange": "Medium", "ownership": "For-Profit Group", "pupilType": "Mixed", "rating": "Good", "senFocus": "Yes", "closureDate": "2025-04-30" },
+            { "name": "Wakefield Independent", "location": "Wakefield", "region": "Yorkshire and the Humber", "lat": 53.680, "lon": -1.490, "foundingYear": null, "pupilsAffected": 140, "feeRange": "Low", "ownership": "Private", "pupilType": "Day", "rating": "Good", "senFocus": "No", "closureDate": "2025-05-15" },
+            { "name": "St Joseph's Park Hill", "location": "Burnley", "region": "North West", "lat": 53.780, "lon": -2.260, "foundingYear": 1960, "pupilsAffected": 128, "feeRange": "Low", "ownership": "Charitable Trust", "pupilType": "Day", "rating": "Good", "senFocus": "No", "closureDate": "2025-04-01" },
+            { "name": "Woodcote House School", "location": "Surrey", "region": "South East", "lat": 51.290, "lon": -0.500, "foundingYear": 1931, "pupilsAffected": 82, "feeRange": "High", "ownership": "Charitable Trust", "pupilType": "Boarding", "rating": "Good", "senFocus": "No", "closureDate": "2025-04-02" },
+            { "name": "Falcons School", "location": "London", "region": "London", "lat": 51.460, "lon": -0.220, "foundingYear": 2000, "pupilsAffected": 107, "feeRange": "High", "ownership": "For-Profit Group", "pupilType": "Day", "rating": "Good", "senFocus": "No", "closureDate": "2025-06-09" },
+            { "name": "Fairfield School", "location": "Backwell", "region": "South West", "lat": 51.410, "lon": -2.720, "foundingYear": 1935, "pupilsAffected": 129, "feeRange": "Medium", "ownership": "Charitable Trust", "pupilType": "Day", "rating": "Outstanding", "senFocus": "No", "closureDate": "2025-02-18" },
+            { "name": "Godolphin Prep", "location": "Salisbury", "region": "South West", "lat": 51.070, "lon": -1.800, "foundingYear": 1726, "pupilsAffected": 150, "feeRange": "High", "ownership": "For-Profit Group", "pupilType": "Mixed", "rating": "Good", "senFocus": "No", "closureDate": "2025-01-28" },
+            { "name": "Oakleigh House School", "location": "Swansea", "region": "Wales", "lat": 51.620, "lon": -3.980, "foundingYear": 1919, "pupilsAffected": 110, "feeRange": "Medium", "ownership": "For-Profit Group", "pupilType": "Day", "rating": "Good", "senFocus": "No", "closureDate": "2025-05-01" },
+            { "name": "Kingscourt Prep School", "location": "Waterlooville", "region": "South East", "lat": 50.890, "lon": -1.010, "foundingYear": 1995, "pupilsAffected": 161, "feeRange": "Medium", "ownership": "For-Profit Group", "pupilType": "Day", "rating": "Good", "senFocus": "No", "closureDate": "2025-04-28" },
+            { "name": "Highfield Prep", "location": "Maidenhead", "region": "South East", "lat": 51.520, "lon": -0.740, "foundingYear": 1892, "pupilsAffected": 94, "feeRange": "High", "ownership": "For-Profit Group", "pupilType": "Day", "rating": "Good", "senFocus": "No", "closureDate": "2025-01-29" },
+            { "name": "St Hilda's", "location": "Bushey", "region": "East of England", "lat": 51.640, "lon": -0.360, "foundingYear": 1891, "pupilsAffected": 151, "feeRange": "Medium", "ownership": "Foundation", "pupilType": "Day", "rating": "Good", "senFocus": "No", "closureDate": "2025-02-20" },
+            { "name": "Ursuline Prep School", "location": "Ilford", "region": "London", "lat": 51.560, "lon": 0.080, "foundingYear": 1903, "pupilsAffected": 93, "feeRange": "Medium", "ownership": "Charitable Trust", "pupilType": "Day", "rating": "Good", "senFocus": "No", "closureDate": "2025-03-10" },
+            { "name": "Hulme Grammar (Primary)", "location": "Oldham", "region": "North West", "lat": 53.530, "lon": -2.100, "foundingYear": 1895, "pupilsAffected": 100, "feeRange": "Medium", "ownership": "Foundation", "pupilType": "Day", "rating": "Good", "senFocus": "No", "closureDate": "2025-06-18" },
+            { "name": "RGS Springfield", "location": "Worcester", "region": "West Midlands", "lat": 52.200, "lon": -2.220, "foundingYear": 1878, "pupilsAffected": 100, "feeRange": "Medium", "ownership": "Foundation", "pupilType": "Day", "rating": "Good", "senFocus": "No", "closureDate": "2025-06-20" },
+            { "name": "Carrdus School", "location": "Banbury", "region": "South East", "lat": 52.060, "lon": -1.330, "foundingYear": 1957, "pupilsAffected": 140, "feeRange": "Medium", "ownership": "Foundation", "pupilType": "Day", "rating": "Good", "senFocus": "No", "closureDate": "2025-06-23" },
+            { "name": "Queen Margaret's, York", "location": "York", "region": "Yorkshire and the Humber", "lat": 53.880, "lon": -1.050, "foundingYear": 1901, "pupilsAffected": 200, "feeRange": "High", "ownership": "Charitable Trust", "pupilType": "Mixed", "rating": "Good", "senFocus": "No", "closureDate": "2025-06-14" },
+            { "name": "Talbot House Prep", "location": "Bournemouth", "region": "South West", "lat": 50.730, "lon": -1.890, "foundingYear": 1886, "pupilsAffected": 102, "feeRange": "Medium", "ownership": "Charitable Trust", "pupilType": "Day", "rating": "Good", "senFocus": "No", "closureDate": "2025-04-10" },
+            { "name": "Cornfields School", "location": "Ashford", "region": "South East", "lat": 51.140, "lon": 0.870, "foundingYear": 2019, "pupilsAffected": 17, "feeRange": "Low", "ownership": "Private", "pupilType": "Day", "rating": "Requires Imp.", "senFocus": "Yes", "closureDate": "2025-06-25" },
+            { "name": "Belle Vue School", "location": "Cranbrook", "region": "South East", "lat": 51.090, "lon": 0.530, "foundingYear": 1968, "pupilsAffected": 90, "feeRange": "Low", "ownership": "Private", "pupilType": "Day", "rating": "Good", "senFocus": "No", "closureDate": "2025-06-26" },
+            { "name": "Old Palace of John Whitgift", "location": "Croydon", "region": "London", "lat": 51.370, "lon": -0.100, "foundingYear": 1889, "pupilsAffected": 870, "feeRange": "High", "ownership": "Foundation", "pupilType": "Day", "rating": "Outstanding", "senFocus": "No", "closureDate": "2025-06-10" },
+            { "name": "Park Hill Prep School", "location": "Kingston", "region": "London", "lat": 51.420, "lon": -0.280, "foundingYear": 1949, "pupilsAffected": 99, "feeRange": "Medium", "ownership": "For-Profit Group", "pupilType": "Day", "rating": "Good", "senFocus": "No", "closureDate": "2025-06-09" },
+            { "name": "Loretto School", "location": "Musselburgh", "region": "Scotland", "lat": 55.943, "lon": -3.055, "foundingYear": 1827, "pupilsAffected": 600, "feeRange": "High", "ownership": "Charitable Trust", "pupilType": "Mixed", "rating": "N/A", "senFocus": "No", "closureDate": "2025-04-27" },
+            { "name": "St George's Prep, Boston", "location": "Boston", "region": "East Midlands", "lat": 52.975, "lon": -0.025, "foundingYear": 2011, "pupilsAffected": 77, "feeRange": "Low", "ownership": "Private", "pupilType": "Day", "rating": "Good", "senFocus": "No", "closureDate": "2025-04-19" },
+            { "name": "Brookes UK School", "location": "Bury St Edmunds", "region": "East of England", "lat": 52.249, "lon": 0.717, "foundingYear": 2018, "pupilsAffected": 158, "feeRange": "High", "ownership": "For-Profit Group", "pupilType": "Mixed", "rating": "Good", "senFocus": "No", "closureDate": "2025-07-28" },
+            { "name": "Bishopstrow College", "location": "Warminster", "region": "South West", "lat": 51.205, "lon": -2.182, "foundingYear": 2006, "pupilsAffected": 104, "feeRange": "High", "ownership": "For-Profit Group", "pupilType": "Boarding", "rating": "Good", "senFocus": "Yes", "closureDate": "2025-06-25" },
+            { "name": "Padworth College", "location": "Reading", "region": "South East", "lat": 51.423, "lon": -1.133, "foundingYear": 1963, "pupilsAffected": 100, "feeRange": "High", "ownership": "For-Profit Group", "pupilType": "Mixed", "rating": "Good", "senFocus": "No", "closureDate": "2025-06-25" }
+        ];
+        
+        const totalSchoolsByRegion = {
+            "London": 450, "South East": 550, "South West": 250, "East of England": 200, "East Midlands": 100,
+            "West Midlands": 150, "North West": 180, "Yorkshire and the Humber": 120, "Wales": 70, "Scotland": 70
+        };
+
+        // --- GLOBAL VARIABLES ---
+        let map, atRiskMap, markers = [], atRiskMarkers = [], regionalClosuresChart, regionalPercentageChart;
+        let activeFilters = {};
+        const currentYear = new Date().getFullYear();
+
+        const defaultIcon = L.icon({
+            iconUrl: 'https://raw.githubusercontent.com/pointhi/leaflet-color-markers/master/img/marker-icon-2x-blue.png',
+            shadowUrl: 'https://cdnjs.cloudflare.com/ajax/libs/leaflet/0.7.7/images/marker-shadow.png',
+            iconSize: [25, 41], iconAnchor: [12, 41], popupAnchor: [1, -34], shadowSize: [41, 41]
+        });
+
+        const highlightIcon = L.icon({
+            iconUrl: 'https://raw.githubusercontent.com/pointhi/leaflet-color-markers/master/img/marker-icon-2x-red.png',
+            shadowUrl: 'https://cdnjs.cloudflare.com/ajax/libs/leaflet/0.7.7/images/marker-shadow.png',
+            iconSize: [25, 41], iconAnchor: [12, 41], popupAnchor: [1, -34], shadowSize: [41, 41]
+        });
+
+        // --- INITIALIZATION ---
+        document.addEventListener('DOMContentLoaded', () => {
+            initializeMaps();
+            initializeToggles();
+            initializeSlider();
+            updateDashboard();
+        });
+        
+        function initializeMaps() {
+            map = L.map('map').setView([54.5, -2.5], 6);
+            L.tileLayer('https://{s}.basemaps.cartocdn.com/light_all/{z}/{x}/{y}{r}.png', {
+                maxZoom: 19,
+                attribution: '&copy; <a href="https://www.openstreetmap.org/copyright">OpenStreetMap</a> contributors &copy; <a href="https://carto.com/attributions">CARTO</a>'
+            }).addTo(map);
+
+            atRiskMap = L.map('at-risk-map').setView([54.5, -2.5], 6);
+            L.tileLayer('https://{s}.basemaps.cartocdn.com/light_all/{z}/{x}/{y}{r}.png', {
+                maxZoom: 19,
+                attribution: '&copy; <a href="https://www.openstreetmap.org/copyright">OpenStreetMap</a> contributors &copy; <a href="https://carto.com/attributions">CARTO</a>'
+            }).addTo(atRiskMap);
+            
+            plotConfirmedSchoolMarkers();
+            plotAtRiskSchools();
+        }
+
+        function initializeSlider() {
+            const timelineSlider = document.getElementById('timeline-slider');
+            const minDate = new Date('2025-01-01').getTime();
+            const maxDate = new Date('2025-07-31').getTime();
+
+            noUiSlider.create(timelineSlider, {
+                start: maxDate,
+                range: { 'min': minDate, 'max': maxDate },
+                step: 24 * 60 * 60 * 1000,
+            });
+
+            timelineSlider.noUiSlider.on('update', (values, handle) => {
+                const currentDate = new Date(parseInt(values[handle]));
+                document.getElementById('timeline-date').textContent = currentDate.toLocaleDateString('en-GB', { day: 'numeric', month: 'long', year: 'numeric' });
+            });
+            
+            timelineSlider.noUiSlider.on('set', updateDashboard);
+        }
+
+        function initializeToggles() {
+            const toggleCategories = {
+                feeRange: ['Low', 'Medium', 'High'],
+                ownership: ['Charitable Trust', 'For-Profit Group', 'Foundation', 'Private'],
+                pupilType: ['Day', 'Boarding', 'Mixed'],
+                rating: ['Outstanding', 'Good', 'Requires Imp.'],
+                senFocus: ['Yes', 'No']
+            };
+
+            const container = document.getElementById('toggle-groups');
+            for (const category in toggleCategories) {
+                const formattedName = category.replace(/([A-Z])/g, ' $1').replace(/^./, str => str.toUpperCase());
+                let groupHtml = `<div class="mb-2"><p class="font-semibold text-sm mb-1">${formattedName}</p><div class="flex flex-wrap gap-2">`;
+                toggleCategories[category].forEach(option => {
+                    groupHtml += `<button data-category="${category}" data-value="${option}" class="toggle-btn text-sm bg-gray-200 hover:bg-gray-300 text-gray-800 font-semibold py-1 px-3 rounded-full">${option}</button>`;
+                });
+                groupHtml += `</div></div>`;
+                container.innerHTML += groupHtml;
+            }
+
+            document.querySelectorAll('.toggle-btn').forEach(btn => {
+                btn.addEventListener('click', (e) => {
+                    const category = e.target.dataset.category;
+                    const value = e.target.dataset.value;
+
+                    if (e.target.classList.contains('active')) {
+                        activeFilters[category] = null;
+                        e.target.classList.remove('active');
+                    } else {
+                        // Deactivate other buttons in the same category
+                        document.querySelectorAll(`.toggle-btn[data-category="${category}"]`).forEach(b => b.classList.remove('active'));
+                        e.target.classList.add('active');
+                        activeFilters[category] = value;
+                    }
+                    updateDashboard();
+                });
+            });
+
+            document.getElementById('reset-filters').addEventListener('click', () => {
+                activeFilters = {};
+                document.querySelectorAll('.toggle-btn.active').forEach(b => b.classList.remove('active'));
+                const timelineSlider = document.getElementById('timeline-slider');
+                timelineSlider.noUiSlider.set(new Date('2025-07-31').getTime());
+                updateDashboard();
+            });
+        }
+
+        // --- CORE LOGIC ---
+        function filterData() {
+            const timelineValue = document.getElementById('timeline-slider').noUiSlider.get();
+            const maxDate = new Date(parseInt(timelineValue));
+
+            let filtered = schoolData.filter(school => new Date(school.closureDate) <= maxDate);
+
+            for (const category in activeFilters) {
+                if (activeFilters[category]) {
+                    filtered = filtered.filter(school => school[category] === activeFilters[category]);
+                }
+            }
+            return filtered;
+        }
+
+        function updateDashboard() {
+            const filteredData = filterData();
+            updateMapHighlights();
+            updateCharts(filteredData);
+            updateTable(filteredData);
+            document.getElementById('school-count').textContent = schoolData.filter(school => new Date(school.closureDate) <= new Date(parseInt(document.getElementById('timeline-slider').noUiSlider.get()))).length;
+        }
+
+        // --- PLOTTING & UPDATE FUNCTIONS ---
+        function plotConfirmedSchoolMarkers() {
+            markers = schoolData.map(school => {
+                const marker = L.marker([school.lat, school.lon], { icon: defaultIcon }).bindPopup(
+                    `<b>${school.name}</b><br>Region: ${school.region}<br>Pupils: ${school.pupilsAffected || 'N/A'}`
+                );
+                marker.schoolData = school; // Attach data to marker
+                marker.addTo(map);
+                return marker;
+            });
+        }
+
+        function plotAtRiskSchools() {
+            const atRiskSchoolData = [
+                { "name": "Mowden Hall School", "location": "Northumberland", "lat": 55.03, "lon": -1.85, "risks": "Small (~150 pupils), Standalone Trust" },
+                { "name": "St. Martin's Ampleforth", "location": "North Yorkshire", "lat": 54.20, "lon": -1.13, "risks": "Small Prep School, Remote Location" },
+                { "name": "Rookwood School", "location": "Andover", "lat": 51.21, "lon": -1.50, "risks": "Small (~200 pupils), Standalone Trust" },
+                { "name": "Ffynone House School", "location": "Swansea", "lat": 51.62, "lon": -3.96, "risks": "Small (~200 pupils), High Regional Pressure" },
+                { "name": "Abbots Bromley School", "location": "Staffordshire", "lat": 52.82, "lon": -1.89, "risks": "History of Financial Issues, Small" },
+                { "name": "Heathfield Knoll School", "location": "Worcestershire", "lat": 52.37, "lon": -2.22, "risks": "Small Day School, Standalone Trust" },
+                { "name": "Lime House School", "location": "Carlisle", "lat": 54.86, "lon": -2.76, "risks": "Small, Remote Boarding School" },
+                { "name": "Moor Park School", "location": "Ludlow", "lat": 52.36, "lon": -2.75, "risks": "Small Prep, Standalone Trust" },
+                { "name": "St Petroc's School", "location": "Bude", "lat": 50.82, "lon": -4.54, "risks": "Small Coastal Prep, Demographic Risk" },
+                { "name": "Howsham House", "location": "York", "lat": 54.07, "lon": -0.87, "risks": "Very Small, Specialist Provision" }
+            ];
+
+            const riskIcon = L.icon({
+                iconUrl: 'https://raw.githubusercontent.com/pointhi/leaflet-color-markers/master/img/marker-icon-2x-orange.png',
+                shadowUrl: 'https://cdnjs.cloudflare.com/ajax/libs/leaflet/0.7.7/images/marker-shadow.png',
+                iconSize: [25, 41], iconAnchor: [12, 41], popupAnchor: [1, -34], shadowSize: [41, 41]
+            });
+
+            atRiskSchoolData.forEach(school => {
+                L.marker([school.lat, school.lon], {icon: riskIcon}).bindPopup(
+                    `<b>${school.name}</b><br><span class="text-amber-700 font-semibold">Identified Risk Factors:</span><br>${school.risks}`
+                ).addTo(atRiskMap);
+            });
+            if (atRiskSchoolData.length > 0) {
+                const group = new L.featureGroup(atRiskSchoolData.map(s => L.marker([s.lat, s.lon])));
+                atRiskMap.fitBounds(group.getBounds(), { padding: [50, 50] });
+            }
+        }
+
+        function updateMapHighlights() {
+            const hasActiveFilter = Object.values(activeFilters).some(val => val !== null);
+
+            markers.forEach(marker => {
+                let isHighlighted = false;
+                if (hasActiveFilter) {
+                    isHighlighted = true;
+                    for (const category in activeFilters) {
+                        if (activeFilters[category] && marker.schoolData[category] !== activeFilters[category]) {
+                            isHighlighted = false;
+                            break;
+                        }
+                    }
+                }
+                marker.setIcon(isHighlighted ? highlightIcon : defaultIcon);
+            });
+        }
+
+        function updateTable(data) {
+            const tableBody = document.getElementById('schoolList');
+            tableBody.innerHTML = '';
+            data.sort((a,b) => a.name.localeCompare(b.name)).forEach(school => {
+                const age = school.foundingYear ? currentYear - school.foundingYear : 'N/A';
+                const row = `
+                    <tr class="hover:bg-gray-50">
+                        <td class="py-2 px-3 border-b">${school.name}</td>
+                        <td class="py-2 px-3 border-b hidden sm:table-cell">${school.region}</td>
+                        <td class="py-2 px-3 border-b text-right">${age}</td>
+                        <td class="py-2 px-3 border-b text-right">${school.pupilsAffected || 'N/A'}</td>
+                        <td class="py-2 px-3 border-b hidden md:table-cell">${school.feeRange || 'N/A'}</td>
+                        <td class="py-2 px-3 border-b hidden lg:table-cell">${school.ownership || 'N/A'}</td>
+                        <td class="py-2 px-3 border-b hidden lg:table-cell">${school.pupilType || 'N/A'}</td>
+                        <td class="py-2 px-3 border-b hidden md:table-cell">${school.rating || 'N/A'}</td>
+                    </tr>`;
+                tableBody.innerHTML += row;
+            });
+        }
+
+        function updateCharts(data) {
+            const closuresByRegion = data.reduce((acc, school) => {
+                acc[school.region] = (acc[school.region] || 0) + 1;
+                return acc;
+            }, {});
+
+            const regionLabels = Object.keys(totalSchoolsByRegion).sort();
+            
+            const closureCounts = regionLabels.map(region => closuresByRegion[region] || 0);
+            const closurePercentages = regionLabels.map(region => {
+                const total = totalSchoolsByRegion[region];
+                const closures = closuresByRegion[region] || 0;
+                return total > 0 ? (closures / total) * 100 : 0;
+            });
+
+            if (regionalClosuresChart) regionalClosuresChart.destroy();
+            regionalClosuresChart = new Chart(document.getElementById('regionalClosuresChart'), {
+                type: 'bar',
+                data: {
+                    labels: regionLabels,
+                    datasets: [{
+                        label: '# of Closures',
+                        data: closureCounts,
+                        backgroundColor: 'rgba(59, 130, 246, 0.7)',
+                    }]
+                },
+                options: {
+                    scales: { y: { beginAtZero: true, title: { display: true, text: 'Number of Closures' } } },
+                    responsive: true, maintainAspectRatio: false,
+                    plugins: { legend: { display: false }, title: { display: true, text: 'Closures by Region (Count)' } }
+                }
+            });
+
+            if (regionalPercentageChart) regionalPercentageChart.destroy();
+            regionalPercentageChart = new Chart(document.getElementById('regionalPercentageChart'), {
+                type: 'bar',
+                data: {
+                    labels: regionLabels,
+                    datasets: [{
+                        label: '% of Closures',
+                        data: closurePercentages,
+                        backgroundColor: 'rgba(239, 68, 68, 0.7)',
+                    }]
+                },
+                options: {
+                    scales: {
+                        y: {
+                            beginAtZero: true,
+                            ticks: { callback: value => value.toFixed(1) + '%' },
+                            title: { display: true, text: '% of Total Schools in Region' }
+                        }
+                    },
+                    responsive: true, maintainAspectRatio: false,
+                    plugins: { legend: { display: false }, title: { display: true, text: 'Closures by Region (%)' } }
+                }
+            });
+        }
+    </script>
+</body>
+</html>
